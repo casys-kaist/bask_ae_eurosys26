@@ -1,0 +1,20 @@
+#cloud-config
+hostname: redis-vm
+users:
+  - name: ubuntu
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: false
+chpasswd:
+  list: |
+    ubuntu:ubuntu
+  expire: false
+ssh_pwauth: true
+packages:
+  - redis-server
+runcmd:
+  - sed -i 's/^bind .*/bind 0.0.0.0/' /etc/redis/redis.conf
+  - sed -i 's/^protected-mode .*/protected-mode no/' /etc/redis/redis.conf
+  - sed -i '/^save /d' /etc/redis/redis.conf
+  - systemctl enable redis-server
+  - systemctl restart redis-server

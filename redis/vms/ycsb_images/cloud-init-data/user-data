@@ -1,0 +1,12 @@
+#cloud-config
+hostname: ycsb-vm
+users:
+  - name: ubuntu
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: false
+chpasswd:
+  list: |
+    ubuntu:ubuntu
+  expire: false
+ssh_pwauth: true
