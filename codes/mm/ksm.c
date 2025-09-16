@@ -44,11 +44,7 @@
 
 #include <asm/tlbflush.h>
 #include "internal.h"
-// #include "mm_slot.h"
-
-#include "time_util.h"
-#include <linux/pagewalk.h>
-#include "ksm.h"
+#include "mm_slot.h"
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/ksm.h>
@@ -61,85 +57,7 @@
 #define DO_NUMA(x)	do { } while (0)
 #endif
 
-
-static void apply_result(struct list_head *shadow_pt_list, struct result_table* result); // Forward declaration
-static bool prepare_metadata(struct ksm_cb* ksm_cb);
-static void destroy_metadata(bool disconnected, int curr_iteration);
-static void prune_stable_tree(void);
-static void try_mms_cleanup(void);
-static struct list_head* rdma_send_metadata(void) {
-	return send_meta_desc();
-}
-static int do_memcmp_pages(struct page *page1, struct page *page2);
-static u32 do_calc_checksum(struct page *page);
-
-void debug_stop(void) {
-	while(1) {
-		msleep(100);
-	}
-}
-
-DEBUG_EVENT_TIMER(ksm_iteration_time);
-DEBUG_EVENT_TIMER_EXPORT_SYMBOL(ksm_iteration_time);
-
-DEBUG_EVENT_TIMER(ksm_memcmp);
-DEBUG_EVENT_TIMER_EXPORT_SYMBOL(ksm_memcmp);
-
-DEBUG_EVENT_TIMER(ksm_hash);
-DEBUG_EVENT_TIMER_EXPORT_SYMBOL(ksm_hash);
-
-DEBUG_EVENT_TIMER(ksm_ops);
-DEBUG_EVENT_TIMER_EXPORT_SYMBOL(ksm_ops);
-
-DEBUG_EVENT_TIMER(bask_iteration_time);
-DEBUG_EVENT_TIMER_EXPORT_SYMBOL(bask_iteration_time);
-
-DEBUG_EVENT_TIMER(bask_commit_time);
-DEBUG_EVENT_TIMER_EXPORT_SYMBOL(bask_commit_time);
-
-DEBUG_EVENT_TIMER(bask_create_mm);
-DEBUG_EVENT_TIMER_EXPORT_SYMBOL(bask_create_mm);
-
-DEBUG_EVENT_TIMER(bask_destroy_mm);
-DEBUG_EVENT_TIMER_EXPORT_SYMBOL(bask_destroy_mm);
-
-#ifdef PRINT_TIME
-	void print_timers(void) {
-		PRINT_HDR();
-		PRINT_TIMER(ksm_iteration_time, "[KSM Iteration]");
-		RESET_TIMER(ksm_iteration_time);
-		PRINT_TIMER(ksm_ops, "[KSM Ops]");
-		RESET_TIMER(ksm_ops);
-		PRINT_TIMER(ksm_memcmp, "[KSM Memcmp]");
-		RESET_TIMER(ksm_memcmp);
-		PRINT_TIMER(ksm_hash, "[KSM Hash]");
-		RESET_TIMER(ksm_hash);
-	}
-
-	void print_bask_timers(void) {
-		PRINT_HDR();
-		PRINT_TIMER(bask_iteration_time, "[Bask Iteration]");
-		RESET_TIMER(bask_iteration_time);
-		PRINT_TIMER(bask_commit_time, "[Bask Commit]");
-		RESET_TIMER(bask_commit_time);
-		PRINT_TIMER(bask_create_mm, "[Bask Create MM]");
-		RESET_TIMER(bask_create_mm);
-		PRINT_TIMER(bask_destroy_mm, "[Bask Destroy MM]");
-		RESET_TIMER(bask_destroy_mm);
-	}
-
-#else
-	void print_timers(void) {
-	
-	}
-
-	void print_bask_timers(void) {
-	
-	}
-#endif
-
-
-// typedef u8 rmap_age_t;
+typedef u8 rmap_age_t;
 
 /**
  * DOC: Overview
@@ -206,10 +124,10 @@ DEBUG_EVENT_TIMER_EXPORT_SYMBOL(bask_destroy_mm);
  * @slot: hash lookup from mm to mm_slot
  * @rmap_list: head for this mm_slot's singly-linked list of rmap_items
  */
-// struct ksm_mm_slot {
-// 	struct mm_slot slot;
-// 	struct ksm_rmap_item *rmap_list;
-// };
+struct ksm_mm_slot {
+	struct mm_slot slot;
+	struct ksm_rmap_item *rmap_list;
+};
 
 /**
  * struct ksm_scan - cursor for scanning
@@ -220,12 +138,12 @@ DEBUG_EVENT_TIMER_EXPORT_SYMBOL(bask_destroy_mm);
  *
  * There is only the one ksm_scan instance of this cursor structure.
  */
-// struct ksm_scan {
-// 	struct ksm_mm_slot *mm_slot;
-// 	unsigned long address;
-// 	struct ksm_rmap_item **rmap_list;
-// 	unsigned long seqnr;
-// };
+struct ksm_scan {
+	struct ksm_mm_slot *mm_slot;
+	unsigned long address;
+	struct ksm_rmap_item **rmap_list;
+	unsigned long seqnr;
+};
 
 /**
  * struct ksm_stable_node - node of the stable rbtree
@@ -239,33 +157,33 @@ DEBUG_EVENT_TIMER_EXPORT_SYMBOL(bask_destroy_mm);
  * @rmap_hlist_len: number of rmap_item entries in hlist or STABLE_NODE_CHAIN
  * @nid: NUMA node id of stable tree in which linked (may not match kpfn)
  */
-// struct ksm_stable_node {
-// 	union {
-// 		struct rb_node node;	/* when node of stable tree */
-// 		struct {		/* when listed for migration */
-// 			struct list_head *head;
-// 			struct {
-// 				struct hlist_node hlist_dup;
-// 				struct list_head list;
-// 			};
-// 		};
-// 	};
-// 	struct hlist_head hlist;
-// 	union {
-// 		unsigned long kpfn;
-// 		unsigned long chain_prune_time;
-// 	};
-// 	/*
-// 	 * STABLE_NODE_CHAIN can be any negative number in
-// 	 * rmap_hlist_len negative range, but better not -1 to be able
-// 	 * to reliably detect underflows.
-// 	 */
-// #define STABLE_NODE_CHAIN -1024
-// 	int rmap_hlist_len;
-// #ifdef CONFIG_NUMA
-// 	int nid;
-// #endif
-// };
+struct ksm_stable_node {
+	union {
+		struct rb_node node;	/* when node of stable tree */
+		struct {		/* when listed for migration */
+			struct list_head *head;
+			struct {
+				struct hlist_node hlist_dup;
+				struct list_head list;
+			};
+		};
+	};
+	struct hlist_head hlist;
+	union {
+		unsigned long kpfn;
+		unsigned long chain_prune_time;
+	};
+	/*
+	 * STABLE_NODE_CHAIN can be any negative number in
+	 * rmap_hlist_len negative range, but better not -1 to be able
+	 * to reliably detect underflows.
+	 */
+#define STABLE_NODE_CHAIN -1024
+	int rmap_hlist_len;
+#ifdef CONFIG_NUMA
+	int nid;
+#endif
+};
 
 /**
  * struct ksm_rmap_item - reverse mapping item for virtual addresses
@@ -281,27 +199,27 @@ DEBUG_EVENT_TIMER_EXPORT_SYMBOL(bask_destroy_mm);
  * @age: number of scan iterations since creation
  * @remaining_skips: how many scans to skip
  */
-// struct ksm_rmap_item {
-// 	struct ksm_rmap_item *rmap_list;
-// 	union {
-// 		struct anon_vma *anon_vma;	/* when stable */
-// #ifdef CONFIG_NUMA
-// 		int nid;		/* when node of unstable tree */
-// #endif
-// 	};
-// 	struct mm_struct *mm;
-// 	unsigned long address;		/* + low bits used for flags below */
-// 	unsigned int oldchecksum;	/* when unstable */
-// 	rmap_age_t age;
-// 	rmap_age_t remaining_skips;
-// 	union {
-// 		struct rb_node node;	/* when node of unstable tree */
-// 		struct {		/* when listed from stable tree */
-// 			struct ksm_stable_node *head;
-// 			struct hlist_node hlist;
-// 		};
-// 	};
-// };
+struct ksm_rmap_item {
+	struct ksm_rmap_item *rmap_list;
+	union {
+		struct anon_vma *anon_vma;	/* when stable */
+#ifdef CONFIG_NUMA
+		int nid;		/* when node of unstable tree */
+#endif
+	};
+	struct mm_struct *mm;
+	unsigned long address;		/* + low bits used for flags below */
+	unsigned int oldchecksum;	/* when unstable */
+	rmap_age_t age;
+	rmap_age_t remaining_skips;
+	union {
+		struct rb_node node;	/* when node of unstable tree */
+		struct {		/* when listed from stable tree */
+			struct ksm_stable_node *head;
+			struct hlist_node hlist;
+		};
+	};
+};
 
 #define SEQNR_MASK	0x0ff	/* low bits of unstable tree seqnr */
 #define UNSTABLE_FLAG	0x100	/* is a node of the unstable tree */
@@ -375,7 +293,7 @@ static bool ksm_use_zero_pages __read_mostly;
 
 /* Skip pages that couldn't be de-duplicated previously */
 /* Default to true at least temporarily, for testing */
-static bool ksm_smart_scan = false;
+static bool ksm_smart_scan = true;
 
 /* The number of zero pages which is placed by KSM */
 unsigned long ksm_zero_pages;
@@ -1069,14 +987,6 @@ stale:
 	if (READ_ONCE(stable_node->kpfn) != kpfn)
 		goto again;
 	remove_node_from_stable_tree(stable_node);
-
-	if (is_ksm_offload()) {
-		struct ksm_event_log log;
-		log.stale_node.kpfn = kpfn;
-		log.type = HOST_STALE_STABLE_NODE;
-		insert_error_log(ksm_error_table, HOST_STALE_STABLE_NODE, &log);
-	}
-
 	return NULL;
 }
 
@@ -1378,11 +1288,7 @@ static int write_protect_page(struct vm_area_struct *vma, struct page *page,
 
 	pvmw.address = page_address_in_vma(page, vma);
 	if (pvmw.address == -EFAULT)
-	{
-		DEBUG_LOG("page_address_in_vma failed\n");
-		fail_reason_cnts[Page_address_in_vma_failed]++;
 		goto out;
-	}
 
 	BUG_ON(PageTransCompound(page));
 
@@ -1391,16 +1297,9 @@ static int write_protect_page(struct vm_area_struct *vma, struct page *page,
 	mmu_notifier_invalidate_range_start(&range);
 
 	if (!page_vma_mapped_walk(&pvmw))
-	{
-		DEBUG_LOG("page_vma_mapped_walk failed\n");
 		goto out_mn;
-	}
 	if (WARN_ONCE(!pvmw.pte, "Unexpected PMD mapping?"))
-	{
-		DEBUG_LOG("pvmw.pte is NULL\n");
-		fail_reason_cnts[Pvmw_pte_is_null]++;
 		goto out_unlock;
-	}
 
 	anon_exclusive = PageAnonExclusive(page);
 	entry = ptep_get(pvmw.pte);
@@ -1429,10 +1328,6 @@ static int write_protect_page(struct vm_area_struct *vma, struct page *page,
 		 */
 		if (page_mapcount(page) + 1 + swapped != page_count(page)) {
 			set_pte_at(mm, pvmw.address, pvmw.pte, entry);
-			DEBUG_LOG("page_mapcount(%d) + 1 + swapped(%d) != page_count(%d)\n",
-				page_mapcount(page), swapped,
-				page_count(page));
-			fail_reason_cnts[Page_mapcount_unequal]++;
 			goto out_unlock;
 		}
 
@@ -1440,8 +1335,6 @@ static int write_protect_page(struct vm_area_struct *vma, struct page *page,
 		if (anon_exclusive &&
 		    folio_try_share_anon_rmap_pte(page_folio(page), page)) {
 			set_pte_at(mm, pvmw.address, pvmw.pte, entry);
-			DEBUG_LOG("anon_exclusive page is shared\n");
-			fail_reason_cnts[Page_is_shared]++;
 			goto out_unlock;
 		}
 
@@ -1588,11 +1481,8 @@ static int try_to_merge_one_page(struct vm_area_struct *vma,
 	if (page == kpage)			/* ksm page forked */
 		return 0;
 
-	if (!PageAnon(page)) {
-		DEBUG_LOG("Not an annoymous page\n");
-		fail_reason_cnts[Not_an_anonymous_page]++;
+	if (!PageAnon(page))
 		goto out;
-	}
 
 	/*
 	 * We need the page lock to read a stable PageSwapCache in
@@ -1602,19 +1492,11 @@ static int try_to_merge_one_page(struct vm_area_struct *vma,
 	 * then come back to this page when it is unlocked.
 	 */
 	if (!trylock_page(page))
-	{
-		DEBUG_LOG("Failed to lock page\n");
-		fail_reason_cnts[Failed_to_lock_page]++;
 		goto out;
-	}
 
 	if (PageTransCompound(page)) {
 		if (split_huge_page(page))
-		{
-			DEBUG_LOG("Failed to split page\n");
-			fail_reason_cnts[Failed_to_split_page]++;
 			goto out_unlock;
-		}
 	}
 
 	/*
@@ -1639,14 +1521,8 @@ static int try_to_merge_one_page(struct vm_area_struct *vma,
 			if (!PageDirty(page))
 				SetPageDirty(page);
 			err = 0;
-		} else if (pages_identical(page, kpage)) {
+		} else if (pages_identical(page, kpage))
 			err = replace_page(vma, page, kpage, orig_pte);
-		} else {
-			DEBUG_LOG("Pages are not identical\n");
-			fail_reason_cnts[Pages_are_not_identical]++;
-		}
-	} else {
-		DEBUG_LOG("Failed to write protect page\n");
 	}
 
 out_unlock:
@@ -1671,18 +1547,11 @@ static int try_to_merge_with_ksm_page(struct ksm_rmap_item *rmap_item,
 	mmap_read_lock(mm);
 	vma = find_mergeable_vma(mm, rmap_item->address);
 	if (!vma)
-	{
-		DEBUG_LOG("No mergeable vma found\n");
-		fail_reason_cnts[No_mergeable_vma_found]++;
 		goto out;
-	}
 
 	err = try_to_merge_one_page(vma, page, kpage);
 	if (err)
-	{
-		DEBUG_LOG("Failed to merge one page\n");
 		goto out;
-	}
 
 	/* Unstable nid is in union with stable anon_vma: remove first */
 	remove_rmap_item_from_tree(rmap_item);
@@ -1724,8 +1593,6 @@ static struct page *try_to_merge_two_pages(struct ksm_rmap_item *rmap_item,
 		 */
 		if (err)
 			break_cow(rmap_item);
-	} else {
-		DEBUG_LOG("Page to kpage promotion failed\n");
 	}
 	return err ? NULL : page;
 }
@@ -2027,7 +1894,7 @@ again:
 			goto again;
 		}
 
-		ret = do_memcmp_pages(page, tree_page);
+		ret = memcmp_pages(page, tree_page);
 		put_page(tree_page);
 
 		parent = *new;
@@ -2260,7 +2127,7 @@ again:
 			goto again;
 		}
 
-		ret = do_memcmp_pages(kpage, tree_page);
+		ret = memcmp_pages(kpage, tree_page);
 		put_page(tree_page);
 
 		parent = *new;
@@ -2496,7 +2363,7 @@ static void cmp_and_merge_page(struct page *page, struct ksm_rmap_item *rmap_ite
 	 * don't want to insert it in the unstable tree, and we don't want
 	 * to waste our time searching for something identical to it there.
 	 */
-	checksum = do_calc_checksum(page);
+	checksum = calc_checksum(page);
 	if (rmap_item->oldchecksum != checksum) {
 		rmap_item->oldchecksum = checksum;
 		return;
@@ -2872,8 +2739,6 @@ no_vmas:
 	return NULL;
 }
 
-static int iter_cnt = 0;
-
 /**
  * ksm_do_scan  - the ksm scanner main worker function.
  * @scan_npages:  number of pages we want to scan before we return.
@@ -2884,79 +2749,16 @@ static void ksm_do_scan(unsigned int scan_npages)
 	struct page *page;
 	unsigned int npages = scan_npages;
 
-	if (is_ksm_offload()) {
-		struct result_table* result;
-		struct list_head *shadow_pt_list;
-
-		lru_add_drain_all();
-		// prune_stable_tree();
-		DEBUG_TIME_START(bask_create_mm);
-		if (prepare_metadata(get_ksm_cb())) {
-			DEBUG_TIME_END(bask_create_mm);
-			// pr_info("Sleep for a while, break the mapping now\n");
-			// msleep(30);
-			
-			DEBUG_TIME_START(bask_iteration_time);
-			shadow_pt_list = rdma_send_metadata();
-			
-			result = recv_offload_result(&ksm_pages_scanned);  
-			DEBUG_TIME_END(bask_iteration_time);
-
-			DEBUG_TIME_START(bask_destroy_mm);
-			rdma_unregister_error_table();
-			clear_error_table();
-			DEBUG_TIME_END(bask_destroy_mm);
-
-			if (result) {
-				DEBUG_TIME_START(bask_commit_time);
-				apply_result(shadow_pt_list, result);
-				DEBUG_TIME_END(bask_commit_time);
-				pr_info("Result table size, %lu\n", 
-					result->total_cnt * sizeof(struct ksm_event_log) + result->tables_cnt * KMALLOC_MAX_SIZE);
-				DEBUG_TIME_START(bask_destroy_mm);
-				free_result_table(result);
-				DEBUG_TIME_END(bask_destroy_mm);
-			} else {
-				offload_server_status = DISCONNECTED;
-				ksm_smart_scan = false;
-				pr_info("Offload server is disconnected\n");
-			}
-
-			DEBUG_TIME_START(bask_destroy_mm);
-			destroy_metadata(offload_server_status == DISCONNECTED, iter_cnt);
-			DEBUG_TIME_END(bask_destroy_mm);
-			// msleep(3000);
-		} else {
-			DEBUG_TIME_END(bask_create_mm);
-		}
-		pr_info("[Log] KSM offload iteration, %d, scanned ,%lu, pages\n",
-			iter_cnt, ksm_pages_scanned);
-		print_bask_timers();
-		iter_cnt++;
-		return;
-	}
-
-DEBUG_TIME_START(ksm_iteration_time);
-
-	//  && likely(!freezing(current))
-	while (npages--) {
+	while (npages-- && likely(!freezing(current))) {
 		cond_resched();
-		DEBUG_TIME_START(ksm_ops);
 		rmap_item = scan_get_next_rmap_item(&page);
-		if (!rmap_item) {
-			DEBUG_TIME_END(ksm_ops);
-			goto out;
-		}
+		if (!rmap_item)
+			return;
 		cmp_and_merge_page(page, rmap_item);
 		put_page(page);
-		DEBUG_TIME_END(ksm_ops);
 	}
 
-out:
 	ksm_pages_scanned += scan_npages - npages;
-
-DEBUG_TIME_END(ksm_iteration_time);
-
 }
 
 static int ksmd_should_run(void)
@@ -2971,25 +2773,6 @@ static int ksm_scan_thread(void *nothing)
 	set_freezable();
 	set_user_nice(current, 5);
 
-
-	while (!is_offload_decided) {
-		msleep(10 * 1000);
-		init_ksm_rdma();
-		pr_info("KSM mode is not decided yet\n");
-	}
-
-	switch (OFFLOAD_MODE) {
-		case NO_OFFLOAD:
-			pr_info("KSM mode is decided: No Offload\n");
-			break;
-		case KSM_OFFLOAD:
-			pr_info("KSM mode is decided: KSM Offload\n");
-			break;
-		case SINGLE_OPERATION_OFFLOAD:
-			pr_info("KSM mode is decided: Single Operation Offload\n");
-			break;
-	};
-
 	while (!kthread_should_stop()) {
 		mutex_lock(&ksm_thread_mutex);
 		wait_while_offlining();
@@ -3003,8 +2786,6 @@ static int ksm_scan_thread(void *nothing)
 				sleep_ms != READ_ONCE(ksm_thread_sleep_millisecs),
 				msecs_to_jiffies(sleep_ms));
 		} else {
-			print_timers();
-
 			wait_event_freezable(ksm_thread_wait,
 				ksmd_should_run() || kthread_should_stop());
 		}
@@ -4129,7 +3910,7 @@ static int __init ksm_init(void)
 	int err;
 
 	/* The correct value depends on page size and endianness */
-	zero_checksum = do_calc_checksum(ZERO_PAGE(0));
+	zero_checksum = calc_checksum(ZERO_PAGE(0));
 	/* Default to false for backwards compatibility */
 	ksm_use_zero_pages = false;
 
@@ -4168,624 +3949,3 @@ out:
 	return err;
 }
 subsys_initcall(ksm_init);
-
-
-static void apply_result(struct list_head *shadow_pt_list, struct result_table* result) {
-	int i, j, err;
-	int from_mm_id, to_mm_id;
-	enum event_tag type;
-	struct ksm_rmap_item *from_item, *to_item;
-	struct ksm_event_log* log_entry;
-	int stable_merge_cnt = 0, unstable_merge_cnt = 0;
-
-	uint64_t from_va, to_va;
-
-	struct ksm_stable_node *stable_node;
-	struct page *kpage;
-	bool split;
-	u32 checksum;
-
-	int table_idx, entry_idx;
-
-	int unstable_abort = 0;
-
-	// unsigned long *failed_unstable_merges = kmalloc(KMALLOC_MAX_SIZE, GFP_KERNEL);
-	// unsigned long failed_unstable_merge_cnt = 0;
-
-	fail_reason_cnts[0] = 0;
-	fail_reason_cnts[1] = 0;
-	fail_reason_cnts[2] = 0;
-	fail_reason_cnts[3] = 0;
-	fail_reason_cnts[4] = 0;
-	fail_reason_cnts[5] = 0;
-	fail_reason_cnts[6] = 0;
-	fail_reason_cnts[7] = 0;
-	fail_reason_cnts[8] = 0;
-	fail_reason_cnts[9] = 0;
-	fail_reason_cnts[10] = 0;
-
-	for (i = 0; i < result->total_cnt; i++) {
-		table_idx = i / MAX_RESULT_TABLE_ENTRIES;
-		entry_idx = i % MAX_RESULT_TABLE_ENTRIES;
-
-		log_entry = &result->entry_tables[table_idx][entry_idx];
-
-		type = log_entry->type;
-
-		switch (type) {
-			case DPU_STABLE_MERGE:
-				from_mm_id = log_entry->stable_merge.from_mm_id;
-				from_va = log_entry->stable_merge.from_va;
-				from_item = shadow_mm_lookup(get_shadow_mm(shadow_pt_list, from_mm_id), from_va);
-
-				kpage = pfn_to_page(log_entry->stable_merge.kpfn);
-				if (!kpage) {
-					DEBUG_LOG("Failed to get kpage in STABLE_MERGE\n");
-					debug_stop();
-				}
-
-				DEBUG_LOG("STABLE_MERGE: %llx(%d)\n", from_va, from_mm_id);
-				DEBUG_LOG("  %lx -> %lx (%lu), node shared cnt: %d\n", (uintptr_t) from_item->page, (uintptr_t) kpage, log_entry->stable_merge.kpfn,
-				log_entry->stable_merge.shared_cnt);
-
-				stable_node = page_stable_node(kpage);
-				if (!stable_node) {
-					unstable_abort++;
-					continue;
-					// Additional debugging logic
-					// if (DEBUG_PRINT_FLAG) {
-					// 	bool skip = false;
-
-					// 	if (failed_unstable_merge_cnt > 0) {
-					// 		for (j = 0; j < failed_unstable_merge_cnt; j++) {
-					// 			if (failed_unstable_merges[j] == log_entry->stable_merge.kpfn) {
-					// 				skip = true;
-					// 				break;
-					// 			}
-					// 		}
-					// 	}
-
-					// 	if (skip) {
-					// 		DEBUG_LOG("  Skip this stable merge\n");
-					// 		continue;
-					// 	}
-					// } else {
-					// 	continue;
-					// }
-					
-					DEBUG_LOG("Failed to get stable node in STABLE_MERGE\n");
-					debug_stop();
-					
-				}
-
-				if (stable_node->rmap_hlist_len == ksm_max_page_sharing) {
-					DEBUG_ERR("Already saturated node, but %d shared cnt\n", log_entry->stable_merge.shared_cnt);
-				}
-
-				kpage = get_ksm_page(stable_node, GET_KSM_PAGE_NOLOCK);
-				if (!kpage) {
-					DEBUG_ERR("Failed to get ksm page in STABLE_MERGE\n"); // unreachable case
-					break;
-				}
-
-				remove_rmap_item_from_tree(from_item);
-
-				err = try_to_merge_with_ksm_page(from_item, from_item->page, kpage);
-				if (!err) {
-					lock_page(kpage);
-					stable_tree_append(from_item, page_stable_node(kpage), false);
-					unlock_page(kpage);
-
-					stable_merge_cnt++;
-				} else {
-					DEBUG_LOG("Failed to merge pages in STABLE_MERGE\n");
-					from_item->head = stable_node; // To handle stale case. Okay to since FLAG is not set
-					insert_error_log(ksm_error_table, HOST_MERGE_ONE_FAILED, &result->entry_tables[table_idx][entry_idx]);
-				}
-				put_page(kpage);
-				break;
-
-			case DPU_UNSTABLE_MERGE:
-				if (ksm_use_zero_pages) {
-					DEBUG_ERR("UNSTABLE_MERGE with zero pages is not supported\n");
-				}
-
-				from_mm_id = log_entry->unstable_merge.from_mm_id;
-				from_va = log_entry->unstable_merge.from_va;
-				to_mm_id = log_entry->unstable_merge.to_mm_id;
-				to_va = log_entry->unstable_merge.to_va;
-		
-				from_item = shadow_mm_lookup(get_shadow_mm(shadow_pt_list, from_mm_id), from_va);
-				to_item = shadow_mm_lookup(get_shadow_mm(shadow_pt_list, to_mm_id), to_va);
-
-				remove_rmap_item_from_tree(from_item);
-				remove_rmap_item_from_tree(to_item);
-
-				DEBUG_LOG("UNSTABLE_MERGE: %llx(%d) -> %llx(%d)\n", from_va, from_mm_id, to_va, to_mm_id);
-				DEBUG_LOG("  %lx(%lu) -> %lx\n", (uintptr_t) from_item->page, page_to_pfn(from_item->page), (uintptr_t) to_item->page);
-
-				kpage = try_to_merge_two_pages(from_item, from_item->page, 
-					to_item, to_item->page);
-
-				split = PageTransCompound(from_item->page)
-					&& compound_head(from_item->page) == compound_head(to_item->page);
-
-				if (kpage) {
-					lock_page(kpage);
-					stable_node = stable_tree_insert(kpage);
-					if (stable_node) {
-						stable_tree_append(to_item, stable_node, false);
-						stable_tree_append(from_item, stable_node, false);
-					}
-					unlock_page(kpage);
-
-					if (!stable_node) {
-						DEBUG_ERR("Failed to insert stable node in UNSTABLE_MERGE\n");
-					}
-
-					// Additional Debugging logic
-					if (DEBUG_PRINT_FLAG) {
-						DEBUG_LOG("  New node checksum: %x\n", checksum);
-					}
-
-					unstable_merge_cnt++;
-				} else {
-					if (split) {
-						if (trylock_page(from_item->page)) {
-							split_huge_page(from_item->page);
-							unlock_page(from_item->page);
-							DEBUG_LOG("Split huge page in UNSTABLE_MERGE Failure\n");
-						}
-					}
-
-					// failed_unstable_merges[failed_unstable_merge_cnt] = page_to_pfn(from_item->page);
-					// failed_unstable_merge_cnt += 1;
-
-					// DEBUG_LOG("Failed to merge pages in UNSTABLE_MERGE: %lu\n", failed_unstable_merges[failed_unstable_merge_cnt - 1]);
-					
-					insert_error_log(ksm_error_table, HOST_MERGE_TWO_FAILED, &result->entry_tables[table_idx][entry_idx]);
-					
-					// if (failed_unstable_merge_cnt >= (KMALLOC_MAX_SIZE / sizeof(unsigned long))) {
-					// 	DEBUG_ERR("Failed unstable merge count exceeded limit\n");
-					// }
-				}
-				break;
-			case DPU_STALE_STABLE_NODE:
-				to_mm_id = log_entry->stale_node.last_mm_id;
-				to_va = log_entry->stale_node.last_va;
-
-				DEBUG_LOG("STALE_STABLE_NODE: %lu - %llx(%d)\n", log_entry->stale_node.kpfn, to_va, to_mm_id);
-
-				to_item = shadow_mm_lookup(get_shadow_mm(shadow_pt_list, to_mm_id), to_va);
-
-				if (!to_item) {
-					DEBUG_ERR("Failed to get to_entry in STALE_NODE\n");
-				}
-
-				stable_node = to_item->head;
-				
-				if (!stable_node) {
-					DEBUG_ERR("Failed to get linked stable node in STALE_NODE\n");
-				}
-
-				if (stable_node->kpfn != log_entry->stale_node.kpfn) {
-					DEBUG_ERR("KPfn mismatch in STALE_NODE: %lu vs %lu\n", stable_node->kpfn, log_entry->stale_node.kpfn);
-				}
-
-				kpage = get_ksm_page(stable_node, GET_KSM_PAGE_LOCK);
-				if (!kpage) {
-					DEBUG_ERR("Invalid page in stale stable node\n");
-				}
-
-				if (!page_mapped(kpage)) {
-					set_page_stable_node(kpage, NULL);
-					remove_node_from_stable_tree(stable_node);
-				} else {
-					DEBUG_ERR("Page is still mapped in STALE_STABLE_NODE\n");
-				}
-
-				unlock_page(kpage);
-				put_page(kpage);
-
-				break;
-			case DPU_ITEM_STATE_CHANGE:
-				to_mm_id = log_entry->stable_merge.from_mm_id;
-				to_va = log_entry->stable_merge.from_va;
-
-				DEBUG_LOG("ITEM_STATE_CHANGE: %llx(%d)\n", to_va, to_mm_id);
-
-				to_item = shadow_mm_lookup(get_shadow_mm(shadow_pt_list, to_mm_id), to_va);
-
-				if (!to_item) {
-					DEBUG_ERR("Failed to get to_entry in ITEM_STATE_CHANGE\n");
-				}
-
-				if (!(to_item->address & STABLE_FLAG)) {
-					DEBUG_LOG("Not a stable Item: %lx\n", to_item->address);
-					DEBUG_ERR("KPFN info: %lu(cnt: %d) vs %lu(cnt: %d)\n", stable_node->kpfn, stable_node->rmap_hlist_len, 
-						log_entry->stable_merge.kpfn, log_entry->stable_merge.shared_cnt);
-				}
-
-				remove_rmap_item_from_tree(to_item);
-
-				break;
-			default:
-				DEBUG_ERR("Invalid merge type: %d\n", type);
-				break;
-		}
-
-		cond_resched();
-	}
-
-	pr_info("Merged %d stable nodes, %d unstable nodes, and %d failures, unstable abort\n", stable_merge_cnt, unstable_merge_cnt, ksm_error_table->total_cnt);
-	pr_info("[Failure Statistics], %d, %d, %d, %d\n", stable_merge_cnt, unstable_merge_cnt, ksm_error_table->total_cnt, unstable_abort);
-
-	pr_info("Merge failure reasons:\n");
-	for (i = 0; i < 10; i++) {
-		if (fail_reason_cnts[i] > 0) {
-			pr_info("  [%s], %lu\n", fail_reason_str[i], fail_reason_cnts[i]);
-		}
-	}
-
-	// kfree(failed_unstable_merges);
-	return;
-}
-
-int anon_test_walk(unsigned long addr, unsigned long next, struct mm_walk *walk) {
-    struct vm_area_struct* vma = walk->vma;
-
-    if (!(vma->vm_flags & VM_MERGEABLE) || !vma->anon_vma) {
-        return 1;
-    }
-
-    return 0;
-}
-
-int scan_pte_entry(pte_t *pte, unsigned long addr, unsigned long end, struct mm_walk *walk) {
-	struct vm_area_struct *vma = walk->vma;
-	struct mm_walk_args* walk_args = walk->private;
-	struct ksm_mm_slot *slot = walk_args->mm_slot;
-	struct shadow_mm* shadow = walk_args->shadow_mm;
-	pte_t pte_val = *pte;
-
-    struct page* page;
-	struct ksm_rmap_item* rmap_item = NULL;
-
-    if (!pte_present(pte_val) || pte_special(pte_val)) {
-        return 0;
-    }
-
-    page = vm_normal_page(vma, addr, pte_val);
-
-    if (IS_ERR_OR_NULL(page)) {
-        return 0;
-    }
-
-    get_page(page);
-
-    if (PageAnon(page)) {
-        flush_anon_page(vma,page, addr);
-        flush_dcache_page(page);
-
-		ksm_scan.address = addr;
-		rmap_item = get_next_rmap_item(slot,
-			ksm_scan.rmap_list, ksm_scan.address);
-		if (rmap_item) {
-			ksm_scan.rmap_list = &rmap_item->rmap_list;
-		} else {
-			DEBUG_ERR("Failed to get rmap item: va %lx\n", addr);
-		}
-
-		if (!((rmap_item->address & PAGE_MASK) == addr)) {
-			DEBUG_ERR("Address mismatch: %lx, %lx\n", rmap_item->address, addr);
-		}
-
-		rmap_item->page = page;
-
-		insert_entry_to_shadow_mm(shadow, addr, page_to_pfn(page) ,rmap_item);
-
-		// if (pte_dirty(pte_val)) {
-		// 	pte_val = pte_mkclean(pte_val);
-		// 	set_pte_at(slot->mm, addr, pte, pte_val);
-		// }
-
-    } else {
-		put_page(page);
-	}
-
-    return 0;
-}
-
-static const struct mm_walk_ops scan_walk_ops = {
-    .pte_entry = scan_pte_entry,
-    .test_walk = anon_test_walk,
-};
-
-int create_shadow_mm(struct ksm_cb* ksm_cb,  struct mm_slot *slot, struct shadow_mm** shadow_mm) {
-    struct shadow_mm* shadow_pt = create_empty(ksm_cb);
-    pid_t pid = -1;
-	struct mm_struct *mm =slot->mm;
-	struct task_struct *task;
-
-	struct ksm_mm_slot *mm_slot = mm_slot_entry(slot, struct ksm_mm_slot, slot);
-
-	struct mm_walk_args walk_args = {
-		.mm_slot = mm_slot,
-		.shadow_mm = shadow_pt,
-	};
-
-	// struct vm_area_struct *vma;
-	// struct rmap_item *rmap_item;
-	// struct page* page;
-	// struct meta_entry meta_entry;
-	// pte_t pte_val, *ptep;
-	// int err = 0;
-
-	// spinlock_t *ptlp;
-
-    if (!shadow_pt) {
-        DEBUG_ERR("Failed to create shadow page table\n");
-        return -1;
-    }
-
-    rcu_read_lock();
-    task = rcu_dereference(mm->owner);
-    if (task) {
-        pid = task_pid_nr(task);
-    }
-    rcu_read_unlock();
-    shadow_pt->mm_id = pid;
-
-    walk_page_range(mm, 0, TASK_SIZE, &scan_walk_ops, &walk_args);
-
-	// vma = find_vma(mm, ksm_scan.address);
-
-	// for (; vma; vma = vma->vm_next) {
-	// 	if (!(vma->vm_flags & VM_MERGEABLE))
-	// 		continue;
-	// 	if (ksm_scan.address < vma->vm_start)
-	// 		ksm_scan.address = vma->vm_start;
-	// 	if (!vma->anon_vma)
-	// 		ksm_scan.address = vma->vm_end;
-
-	// 	while (ksm_scan.address < vma->vm_end) {
-
-	// 		page = follow_page(vma, ksm_scan.address, FOLL_PIN);
-
-	// 		if (IS_ERR_OR_NULL(page)) {
-	// 			ksm_scan.address += PAGE_SIZE;
-	// 			continue;
-	// 		}
-
-	// 		if (PageAnon(page)) {
-	// 			flush_anon_page(vma, page, ksm_scan.address);
-	// 			flush_dcache_page(page);
-	// 			get_page(page);
-
-	// 			rmap_item = get_next_rmap_item(slot,
-	// 				ksm_scan.rmap_list, ksm_scan.address);
-	// 			if (rmap_item) {
-	// 				ksm_scan.rmap_list =
-	// 						&rmap_item->rmap_list;
-	// 			} else {
-	// 				pr_err("Failed to get rmap item: va %lx\n", ksm_scan.address);
-	// 			}
-					
-	// 			err = follow_pte(mm, ksm_scan.address, &ptep, &ptlp);
-	// 			if (err) {
-	// 				pr_err("Failed to follow pte\n");
-	// 			}
-	// 			pte_val = *ptep;
-
-	// 			meta_entry.page = page;
-	// 			meta_entry.rmap_item = rmap_item;
-	// 			meta_entry.pte = ptep;
-
-	// 			spin_unlock(ptlp);
-
-	// 			insert_entry_to_shadow_mm(shadow_pt, ksm_scan.address, &meta_entry);
-		
-	// 			if (pte_dirty(pte_val)) {
-	// 				pte_val = pte_mkclean(pte_val);
-	// 				set_pte_at(slot->mm, ksm_scan.address, ptep, pte_val);
-	// 			}
-	// 		} else {
-	// 			unpin_user_page(page);
-	// 		}
-	// 		ksm_scan.address += PAGE_SIZE;
-	// 	}
-	// }
-
-	flush_tlb_mm(mm);
-
-	*shadow_mm = shadow_pt;
-    return shadow_pt->pt_map.cnt;
-}
-
-bool init_shadow_for_mm(struct ksm_cb* ksm_cb, struct mm_slot *mm_slot) {
-	struct shadow_mm* shadow_mm = NULL;
-	int cnt;
-
-	if (ksm_test_exit(mm_slot->mm)) {
-		DEBUG_LOG("MM is exiting\n");
-		return false;
-	}
-
-	cnt = create_shadow_mm(ksm_cb, mm_slot, &shadow_mm);
-
-    if (!shadow_mm) {
-        DEBUG_ERR("Failed to create shadow page table\n");
-        return false;
-    }
-
-	if (cnt == 0 ) {
-		free_shadow_mm(shadow_mm, false, 0);
-		return false;
-	}
-
-    list_add(&shadow_mm->list, &ksm_cb->shadow_pt_list);
-
-    DEBUG_LOG("Registered shadow page table for mm %d\n", shadow_mm->mm_id);
-	return true;
-}
-
-static bool prepare_metadata(struct ksm_cb* ksm_cb) {
-	struct mm_slot *slot, *next;
-	struct ksm_mm_slot *mm_slot;
-	struct mm_struct *mm;
-	bool any_registered = false;
-
-	unsigned long total_metadata_size = 0;
-	struct shadow_mm* entry, *tmp;
-
-	spin_lock(&ksm_mmlist_lock);
-	// TODO: check empty list
-
-	list_for_each_entry_safe(slot, next, &ksm_mm_head.slot.mm_node, mm_node) {
-		spin_unlock(&ksm_mmlist_lock);
-		// TODO: check if the mm is already registered
-
-		mm_slot = mm_slot_entry(slot, struct ksm_mm_slot, slot);
-
-		ksm_scan.mm_slot = mm_slot;
-		ksm_scan.address = 0;
-		ksm_scan.rmap_list = &mm_slot->rmap_list;
-
-		mm = slot->mm;
-		mmap_read_lock(mm);
-
-		if (init_shadow_for_mm(ksm_cb, slot)) {
-			any_registered = true;
-			mmap_read_unlock(mm);
-		} else {
-			if (ksm_test_exit(mm)) {
-				ksm_scan.address = 0;
-				ksm_scan.rmap_list = &mm_slot->rmap_list;
-			}
-
-			remove_trailing_rmap_items(ksm_scan.rmap_list);
-
-			if (ksm_scan.address == 0) {
-				hash_del(&mm_slot->slot.hash);
-				list_del(&mm_slot->slot.mm_node);
-				
-				mm_slot_free(mm_slot_cache, mm_slot);
-				clear_bit(MMF_VM_MERGEABLE, &mm->flags);
-				clear_bit(MMF_VM_MERGE_ANY, &mm->flags);
-				mmap_read_unlock(mm);
-				mmdrop(mm);
-			}else{
-				mmap_read_unlock(mm);
-			}
-		}
-
-		spin_lock(&ksm_mmlist_lock);
-	}
-	spin_unlock(&ksm_mmlist_lock);
-	
-
-	if (any_registered) {
-		rdma_register_shadow_mms();
-		rdma_register_error_table();
-	}
-
-	spin_lock(&ksm_mmlist_lock);
-	ksm_scan.address = 0;
-	ksm_scan.mm_slot = &ksm_mm_head;
-	spin_unlock(&ksm_mmlist_lock);
-
-	total_metadata_size = sizeof(struct ksm_cb);
-	list_for_each_entry_safe(entry, tmp, &ksm_cb->shadow_pt_list, list) {
-		total_metadata_size += sizeof(struct shadow_mm);
-		total_metadata_size += entry->pt_map.va_array_cnt * (KMALLOC_MAX_SIZE);
-		total_metadata_size += entry->pt_map.cnt * (sizeof(struct shadow_pte) + sizeof(struct scatterlist));
-	}
-	pr_info("Total metadata size, %lu\n", total_metadata_size);
-
-	return any_registered;
-}
-
-static void destroy_metadata(bool disconnected, int curr_iteration) {
-	rdma_unregister_shadow_mms(disconnected, curr_iteration);
-}
-
-static void prune_stable_tree(void) {
-	struct ksm_stable_node *stable_node, *dup, *any;
-	struct page *page;
-	struct rb_node* node;
-
-	for (node = rb_first(root_stable_tree); node; node = rb_next(node)) {
-		stable_node = rb_entry(node, struct ksm_stable_node, node);
-		any = NULL;
-		page = chain_prune(&dup, &stable_node, root_stable_tree);
-		// page = get_ksm_page(stable_node, GET_KSM_PAGE_NOLOCK);
-		if (page)
-			put_page(page);
-		cond_resched();
-	}
-}
-
-static void try_mms_cleanup(void) {
-	struct mm_slot *slot, *next;
-	struct ksm_mm_slot *mm_slot;
-	struct mm_struct *mm;
-
-	spin_lock(&ksm_mmlist_lock);
-	
-	list_for_each_entry_safe(slot, next, &ksm_mm_head.slot.mm_node, mm_node) {
-		mm_slot = mm_slot_entry(slot, struct ksm_mm_slot, slot);
-
-		ksm_scan.mm_slot = mm_slot;
-		ksm_scan.address = 0;
-		ksm_scan.rmap_list = &mm_slot->rmap_list;
-
-		mm = slot->mm;
-		mmap_read_lock(mm);
-
-		if (ksm_test_exit(mm)) {
-			ksm_scan.address = 0;
-			ksm_scan.rmap_list = &mm_slot->rmap_list;
-		}
-
-		remove_trailing_rmap_items(ksm_scan.rmap_list);
-
-		if (ksm_scan.address == 0) {
-			hash_del(&mm_slot->slot.hash);
-			list_del(&mm_slot->slot.mm_node);
-			
-			mm_slot_free(mm_slot_cache, mm_slot);
-			clear_bit(MMF_VM_MERGEABLE, &mm->flags);
-			clear_bit(MMF_VM_MERGE_ANY, &mm->flags);
-			mmap_read_unlock(mm);
-			mmdrop(mm);
-		}else{
-			mmap_read_unlock(mm);
-		}
-		
-	}
-	spin_unlock(&ksm_mmlist_lock);
-}
-
-static int do_memcmp_pages(struct page *page1, struct page *page2) {
-	int result;
-//	DEBUG_TIME_START(ksm_memcmp);
-	if (is_styx_offload()) {
-		result = rdma_styx_memcmp(ksm_cb, page1, page2);
-	}else {
-		result = memcmp_pages(page1, page2);
-	}
-//	DEBUG_TIME_END(ksm_memcmp);
-	return result;
-}
-
-static u32 do_calc_checksum(struct page *page) {
-	u32 checksum;
-//	DEBUG_TIME_START(ksm_hash);
-	if (is_styx_offload()) {
-		checksum = rdma_styx_hash(ksm_cb, page);
-	}else{
-		checksum = calc_checksum(page);
-	}
-//	DEBUG_TIME_END(ksm_hash);
-	return checksum;
-}
