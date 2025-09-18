@@ -2,7 +2,7 @@
 
 ## Abstract
 
-This repository contains the artifact evaluation materials for **BASK: Batch And SmartNIC-offloaded KSM**. We evaluate our claim that BASK successfully preserves high deduplication throughput while reducing application interference caused by KSM. The experiments demonstrate BASK's effectiveness in achieving high memory deduplication rates while maintaining application performance through Smart NIC offloading.
+This repository contains the artifact evaluation materials for **BASK: Batch And SmartNIC-offloaded KSM (EUROSYS'26)**. We evaluate our claim that BASK successfully preserves high deduplication throughput while reducing application interference caused by KSM. The experiments demonstrate BASK's effectiveness in achieving high memory deduplication rates while maintaining application performance through Smart NIC offloading.
 
 ## General Notes
 
@@ -216,3 +216,9 @@ BASK_AE/
 ├── codes/              # BASK implementation and utilities
 └── README.md           # This file
 ```
+
+## License
+
+This artifact is licensed under the GNU General Public License v2.0 only (GPL-2.0).
+
+See the [LICENSE](./LICENSE-GPL) file for full license terms.
