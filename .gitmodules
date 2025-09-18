@@ -1,0 +1,3 @@
+[submodule "redis/scripts/HdrLogProcessing"]
+	path = redis/scripts/HdrLogProcessing
+	url = https://github.com/nitsanw/HdrLogProcessing
