@@ -197,6 +197,7 @@ Unless noted as “inside the VM,” run commands on the host.
       ```
       cd <BASK_AE_DIR>/redis/vms/redis_images
       # Download Ubuntu 22.04 cloud image (e.g., jammy-server-cloudimg-amd64.img)
+      # e.g. wget https://cloud-images.ubuntu.com/daily/server/jammy/current/jammy-server-cloudimg-amd64.img
       mv <downloaded-file> redis-test-0.img
       ```
    3. Create seed.img
@@ -236,6 +237,7 @@ Unless noted as “inside the VM,” run commands on the host.
          ```
          cd <BASK_AE_DIR>/redis/vms/ycsb_images
          # Download Ubuntu 22.04 cloud image (e.g., jammy-server-cloudimg-amd64.img)
+         # https://cloud-images.ubuntu.com/daily/server/jammy/current/jammy-server-cloudimg-amd64.img
          mv <downloaded-file> ycsb-0.img
 
          cd cloud-init-data

@@ -134,7 +134,13 @@ make
 ```
 
 #### Hodor
-*Note: Hodor integration is planned for future releases.*
+**Build utility for HDR histogram logs manipulation**
+```bash
+git submodule init
+git submodule update
+cd <BASK_AE_DIR>/redis/scripts/HdrLogProcessing
+mvn package
+```
 
 ### Quick Start
 
