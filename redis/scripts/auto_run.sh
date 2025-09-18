@@ -7,7 +7,7 @@ WORKLOADS=("a" "b" "c" "d")
 #WORKLOADS=("a")
 ITERATIONS=5
 
-CONFIG_NAMES=("no_ksm" "4k-20" "1.25k-20" "bask" "bask_old")
+CONFIG_NAMES=("no_ksm" "4k-20" "1.25k-20" "bask" "bask_opt")
 #CONFIG_NAMES=("dataplane")
 TOTAL_CONFIGS=${#CONFIG_NAMES[@]}
 
