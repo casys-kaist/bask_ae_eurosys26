@@ -2,7 +2,9 @@
 
 ## Abstract
 
-This repository contains the artifact evaluation materials for **BASK: Batch And SmartNIC-offloaded KSM (EUROSYS'26)**. We evaluate our claim that BASK successfully preserves high deduplication throughput while reducing application interference caused by KSM. The experiments demonstrate BASK's effectiveness in achieving high memory deduplication rates while maintaining application performance through Smart NIC offloading.
+This repository contains the artifact evaluation materials for **BASK: Batch And SmartNIC-offloaded KSM (EUROSYS'26)**. We evaluate our claim that BASK successfully preserves high deduplication throughput while reducing application interference caused by KSM. The experiments demonstrate BASK's effectiveness in achieving high memory deduplication rates while maintaining application performance through SmartNIC offloading.
+
+> Public Archive: https://doi.org/10.5281/zenodo.17149729
 
 ## General Notes
 
@@ -30,7 +32,7 @@ We tested BASK with dual-socket 16-cores Intel Xeon Gold 6326 2.9GHz CPUs with 2
 
 The host server runs Ubuntu 24.04 with a custom kernel based on Linux 6.8.0, and the SmartNIC runs Linux 5.15.0-bluefield. For experiment consistency, we disabled hyper-threading, transparent huge page management, dynamic scaling of CPU frequencies, and all VMs are pinned to specific cores, minimizing variations. Each VM runs Linux 5.4.0.
 
-The testbed supports various KSM configurations including traditional host-based KSM, dataplane optimizations, and our BASK approach with Smart NIC offloading.
+The testbed supports various KSM configurations including traditional host-based KSM, dataplane optimizations, and our BASK approach with SmartNIC offloading.
 
 ## Getting Started
 
@@ -40,7 +42,7 @@ The testbed supports various KSM configurations including traditional host-based
 - Linux environment with KSM support
 - Root privileges for KSM configuration and script execution
 
-#### Smart NIC Setup (NVIDIA BlueField-2)
+#### SmartNIC Setup (NVIDIA BlueField-2)
 - In-box RDMA driver (not NVIDIA OFED)
 - rshim utility installed
 
@@ -66,12 +68,22 @@ sudo visudo
 your_name ALL=(ALL) NOPASSWD: ALL
 ```
 
+#### Disable Transparent Huge Page
+```bash
+# Temporary
+sudo bash -c "echo never > /sys/kernel/mm/transparent_hugepage/enabled"
+
+# Permanent
+sudo vi /etc/default/grub
+GRUB_CMDLINE_LINUX="transparent_hugepage=never"
+```
+
 #### Additional Dependencies
 - See individual experiment READMEs for specific requirements
 
 ### Build the BASK
 
-1. **Prepare Smart NIC environment:**
+1. **Prepare SmartNIC environment:**
    ```bash
    ssh bf2
    mkdir ~/bask_snic
@@ -84,7 +96,7 @@ your_name ALL=(ALL) NOPASSWD: ALL
    make  # This automatically copies contents to bf2
    ```
 
-3. **Complete build on Smart NIC:**
+3. **Complete build on Smar NIC:**
    ```bash
    ssh bf2
    cd ~/bask_snic
@@ -142,8 +154,7 @@ cd <BASK_AE_DIR>/redis/scripts/HdrLogProcessing
 mvn package
 ```
 
-### Quick Start
-
+## Quick Start
 **For AE Reviewers (using provided server):**
 1. All configurations are already complete - proceed directly to running experiments
 2. Navigate to experiment directories and follow the execution instructions
@@ -205,11 +216,11 @@ This artifact evaluation includes three main experiments that comprehensively ev
 
 ### Experiment 3: Fault Tolerance Evaluation (Figure 7)
 
-**Purpose**: Demonstrate BASK's fault tolerance capabilities when Smart NIC offloading becomes unavailable.
+**Purpose**: Demonstrate BASK's fault tolerance capabilities when SmartNIC offloading becomes unavailable.
 
-**Setup**: Uses the same cloud workload setup as Experiment 1. KSM server is terminated during execution to emulate Smart NIC failure, testing graceful fallback to host-based deduplication (4000-20ms configuration).
+**Setup**: Uses the same cloud workload setup as Experiment 1. KSM server is terminated during execution to emulate SmartNIC failure, testing graceful fallback to host-based deduplication (4000-20ms configuration).
 
-**Key Validation**: BASK retains KSM state locally and continues memory deduplication progress despite Smart NIC interruption, demonstrating fault tolerance without compromising system stability.
+**Key Validation**: BASK retains KSM state locally and continues memory deduplication progress despite SmartNIC interruption, demonstrating fault tolerance without compromising system stability.
 
 **Details**: See [Cloud Workloads Experiment - Fault Tolerance Test](cloud_workloads/README.md#fault-tolerance-test)
 

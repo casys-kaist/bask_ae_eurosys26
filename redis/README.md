@@ -34,7 +34,7 @@ Four workload patterns representing common cloud access patterns:
 - **4k-20**: Standard KSM with 4000 pages per scan, 20ms sleep
 - **1.25k-20**: Standard KSM with 1250 pages per scan, 20ms sleep  
 - **dataplane**: SNIC-based offloading with RDMA communication
-- **BASK**: Smart NIC-based approach with control plane offloading
+- **BASK**: SNIC-based approach with control plane offloading
 - **BASK_OPT**: Optimized and bug-fixed version of BASK
 
 ### Service Configuration
@@ -54,7 +54,7 @@ Type=simple
 User=<user_name>
 ExecStart=<BASK_AE_DIR>/redis/scripts/auto_run.sh
 Restart=no
-WorkingDirectory=<BASK_AE_RID>/redis/scripts
+WorkingDirectory=<BASK_AE_DIR>/redis/scripts
 Environment=HOME=/home/<user_name>
 Environment=SHELL=/bin/bash
 
@@ -65,6 +65,37 @@ WantedBy=multi-user.target
 ---
 
 ## Run
+
+### Quick Start
+#### Minimal Experiment for Test Run
+Running the full suite takes ~24 hours. Below is a minimal run that takes 3~4 hours.
+- Skip: `1250-20ms`, `DataPlane`, `BASK`
+- Run only: `no-ksm`, `4000-20ms`, `BASK-OPT`
+
+You have two options:
+- Option A (recommended): Run only the `YCSB a` workload and keep `ITERATIONS=5` for stability
+- Option B: Run the full workload but set `ITERATIONS=1` to finish faster
+   > **Note**: Tail latency has high variance; reducing the number of iterations can skew results.
+
+This should still demonstrate BASK's low interference with co-running application compare to Linux KSM.
+
+#### Guidelines for Change
+1. **Edit `<BASK_AE_DIR>/redis/scripts/auto_run.sh` before `Phase 1`**
+    - Example for Option A (`YCSB a` only):
+      ```bash
+      WORKLOADS=("a")
+      ITERATIONS=5
+      CONFIG_NAMES=("no_ksm" "4k-20" "bask_opt")
+      ```
+2. **During artifact generation, uinon only the configurations you actually executed:**
+   - Example for Option A (`YCSB a` only):
+      ```bash
+      ./union_all_ops.sh no_ksm_a 
+      ./union_all_ops.sh 4k-20_a 
+      ./union_all_ops.sh bask_opt_a 
+      ```
+
+---
 
 ### Phase 1: Standard Baselines Including BASK Variants (18 hours)
 
@@ -77,7 +108,7 @@ WantedBy=multi-user.target
 2. **Monitor progress:**
    - The benchmark will automatically run for: no_ksm, 4k-20, 1.25k-20, bask, bask_opt
    - DataPlane baseline requires separate configuration (Phase 2)
-   - Check completion by looking for `redis_benchmark_done` file in \$HOME directory
+   - Check completion by looking for `redis_bench_all_done` file in \$HOME directory
    - Total runtime: approximately 18 hours
 
 ### Phase 2: DataPlane Baseline (4 hours)

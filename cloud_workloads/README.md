@@ -31,7 +31,7 @@ We launch realistic cloud workloads with mixed applications including GAP Benchm
 - **4k-20**: Standard KSM with 4000 pages per scan, 20ms sleep
 - **1.25k-20**: Standard KSM with 1250 pages per scan, 20ms sleep
 - **dataplane**: SNIC-based offloading with RDMA communication
-- **bask**: Smart NIC-based approach with batch processing
+- **bask**: SNIC-based approach with batch processing
 - **bask_opt**: Optimized and bug-fixed version of BASK
 
 
@@ -83,6 +83,27 @@ We launch realistic cloud workloads with mixed applications including GAP Benchm
 ---
 
 ## Run
+
+### Quick Start
+#### Minimal Experiment for Test Run
+Running the full suite takes about 6 hours. Below is a minimal run that takes 3 hours for `Figure 5`, `Figure 6`, and `Table 5`.
+- Skip: `1250-20ms`, `DataPlane`, `BASK`
+- Run only: `4000-20ms`, `BASK-OPT`, `BASK-FAULT`
+
+This should still demonstrate BASK’s early memory deduplication capability, fault tolerance, and low transaction failure rate.
+
+#### Guidelines for Change
+1. **Generate `Figure 5` using the modified command below**
+   ```bash
+   python plot_mem_ksm_sharing.py \
+      raw_linux_4k-20_1 \
+      raw_bask_opt_opt_1/ \
+      --limit 2500 \
+      --mark 32 \
+      --labels 4000-20ms BASK
+   ```
+
+---
 
 ### Reboot Before Each Run
 ```bash
@@ -206,7 +227,7 @@ python plot_failure_one.py \
 ```
 **Output**: `fault.pdf`
 
-### Table 5 - Transaction Fial Rate
+### Table 5 - Transaction Failure Rate
 
 ```bash
 cd <BASK_AE_DIR>/cloud_workloads/scripts
