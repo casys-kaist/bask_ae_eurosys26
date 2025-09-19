@@ -68,7 +68,7 @@ WantedBy=multi-user.target
 
 ### Quick Start
 #### Minimal Experiment for Test Run
-Running the full suite takes ~24 hours. Below is a minimal run that takes 3~4 hours.
+Running the full suite takes \~24 hours. Below is a minimal run that takes 3\~4 hours.
 - Skip: `1250-20ms`, `DataPlane`, `BASK`
 - Run only: `no-ksm`, `4000-20ms`, `BASK-OPT`
 
